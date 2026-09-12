@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,7 +12,7 @@ public class Lightning : MonoBehaviour
 
     public RawImage display;
 
-    Cell[,] cells = new Cell[HEIGHT, WIDTH];
+    Cell[,] cells;
     Texture2D texture;
     Color[] pixels;
 
@@ -50,6 +51,7 @@ public class Lightning : MonoBehaviour
     
     void Start()
     {
+        cells = new Cell[HEIGHT, WIDTH];
         texture = new Texture2D(WIDTH, HEIGHT);
 
         texture.filterMode = FilterMode.Point;
@@ -61,12 +63,8 @@ public class Lightning : MonoBehaviour
         {
             for (int x = 0; x < WIDTH; x++)
             {
+                cells[y,x] = new Cell(0, GetPotential(x, y));
 
-                // Instantiate each cell with random potential
-                float randomPotential = Random.Range(-1f, 1f);
-                cells[y,x] = new Cell(0, randomPotential);
-
-                //find 2d index and set the color of the pixel
                 int index = y * WIDTH + x;
                 pixels[index] = GetPotentialColor(cells[y, x].electricPotential);
 
@@ -97,6 +95,35 @@ public class Lightning : MonoBehaviour
         else
         {
             return Color.Lerp(neutral, positive, potential);
+        }
+    }
+
+    float GetPotential(int x, int y)
+    {
+        float groundNoise = Mathf.PerlinNoise(x * 0.05f, 0f);
+        float lowerCloudNoise = Mathf.PerlinNoise(x * 0.04f, 10f);
+        float upperCloudNoise = Mathf.PerlinNoise(x * 0.04f, 20f);
+
+        int groundTop = 10 + Mathf.RoundToInt(groundNoise * 8f);
+        int lowerCloudBottom = 126 + Mathf.RoundToInt(lowerCloudNoise * 8f);
+        int lowerCloudTop = 156 + Mathf.RoundToInt(upperCloudNoise * 8f);
+    
+
+        if (y <= groundTop)
+        {
+            return UnityEngine.Random.Range(0.5f, 0.8f);
+        }
+        else if (y <= lowerCloudBottom)
+        {
+            return UnityEngine.Random.Range(-0.2f, 0.2f);
+        }
+        else if (y <= lowerCloudTop)
+        {
+            return UnityEngine.Random.Range(-1.0f, -0.7f);
+        }
+        else
+        {
+            return UnityEngine.Random.Range(0.7f, 1.0f);
         }
     }
 }
