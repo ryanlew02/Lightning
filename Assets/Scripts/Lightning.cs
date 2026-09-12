@@ -1,21 +1,24 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public class Lightning : MonoBehaviour
 {
     public GameObject cellPrefab;
 
-    public const int HEIGHT = 90;
-    public const int WIDTH = 160;
-    public const float CELL_SIZE = 0.1f;
-    
-    Cell[,] cells = new Cell[WIDTH, HEIGHT];
-    SpriteRenderer[,] renderers = new SpriteRenderer[WIDTH, HEIGHT];
+    public const int HEIGHT = 180;
+    public const int WIDTH = 320;
+    public const float CELL_SIZE = 0.05f;
 
-    Color strongNegative = new Color(0.08f, 0.15f, 0.45f); 
-    Color mildNegative   = new Color(0.20f, 0.55f, 0.95f); 
-    Color neutral        = new Color(0.03f, 0.04f, 0.08f); 
-    Color mildPositive   = new Color(1.00f, 0.45f, 0.10f); 
-    Color strongPositive = new Color(1.00f, 0.92f, 0.45f);
+    public RawImage display;
+
+    Cell[,] cells = new Cell[HEIGHT, WIDTH];
+    Texture2D texture;
+    Color[] pixels;
+
+    Color negative = new Color(0.1f, 0.3f, 1.0f); // Blue
+    Color neutral  = new Color(0.05f, 0.05f, 0.08f); // Near black
+    //Color white = new Color(1f, 1f, 1f, 1f);
+    Color positive = new Color(1.0f, 0.15f, 0.1f); // Red
 
     public enum Material
     {
@@ -47,24 +50,34 @@ public class Lightning : MonoBehaviour
     
     void Start()
     {
-        for (int x = 0; x < WIDTH; x++)
+        texture = new Texture2D(WIDTH, HEIGHT);
+
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        pixels = new Color[WIDTH * HEIGHT];
+
+        for (int y = 0; y < HEIGHT; y++)
         {
-            for (int y = 0; y < HEIGHT; y++)
+            for (int x = 0; x < WIDTH; x++)
             {
+
+                // Instantiate each cell with random potential
                 float randomPotential = Random.Range(-1f, 1f);
-                cells[x,y] = new Cell(0, randomPotential);
+                cells[y,x] = new Cell(0, randomPotential);
 
-                float xPos = (x - (WIDTH - 1) / 2f) * CELL_SIZE;
-                float yPos = (y - (HEIGHT - 1) / 2f) * CELL_SIZE;
+                //find 2d index and set the color of the pixel
+                int index = y * WIDTH + x;
+                pixels[index] = GetPotentialColor(cells[y, x].electricPotential);
 
-                Vector3 position = new Vector3(xPos, yPos, 0);
-
-                GameObject square = Instantiate(cellPrefab, position, Quaternion.identity);
-                square.transform.localScale = new Vector3(CELL_SIZE, CELL_SIZE, 1);
-                renderers[x,y] = square.GetComponent<SpriteRenderer>();
-                renderers[x,y].color = GetPotentialColor(cells[x,y].electricPotential);
             }
         }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+
+        display.texture = texture;
+
     }
 
     
@@ -75,25 +88,15 @@ public class Lightning : MonoBehaviour
 
     Color GetPotentialColor(float potential)
     {
-        if (potential <= -0.75f)
+        potential = Mathf.Clamp(potential, -1f, 1f);
+
+        if (potential < 0)
         {
-            return strongNegative;
-        }
-        else if (potential < -0.25f)
-        {
-            return mildNegative;
-        }
-        else if (potential < 0.25f)
-        {
-            return neutral;
-        }
-        else if (potential < 0.75f)
-        {
-            return mildPositive;
+            return Color.Lerp(neutral, negative, -potential);
         }
         else
         {
-            return strongPositive;
+            return Color.Lerp(neutral, positive, potential);
         }
     }
 }
