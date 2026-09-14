@@ -35,8 +35,10 @@ public class Lightning : MonoBehaviour
         public float electricPotential;
         public float ionLevel;
         public float conductivity;
+        public float electricField;
         public bool isActive;
         public Material material;
+
 
         public Cell(int charge, float electricPotential)
         {
@@ -46,36 +48,16 @@ public class Lightning : MonoBehaviour
             this.conductivity = 0.2f;
             this.isActive = false;
             this.material = Material.air;
+            this.electricField = 0f;
         }
     }
     
     void Start()
     {
-        cells = new Cell[HEIGHT, WIDTH];
-        texture = new Texture2D(WIDTH, HEIGHT);
+        InitializeGrid();
 
-        texture.filterMode = FilterMode.Point;
-        texture.wrapMode = TextureWrapMode.Clamp;
-
-        pixels = new Color[WIDTH * HEIGHT];
-
-        for (int y = 0; y < HEIGHT; y++)
-        {
-            for (int x = 0; x < WIDTH; x++)
-            {
-                cells[y,x] = new Cell(0, GetPotential(x, y));
-
-                int index = y * WIDTH + x;
-                pixels[index] = GetPotentialColor(cells[y, x].electricPotential);
-
-            }
-        }
-
-        texture.SetPixels(pixels);
-        texture.Apply();
-
-        display.texture = texture;
-
+        GenerateInitialConditions();
+        Render();
     }
 
     
@@ -126,4 +108,109 @@ public class Lightning : MonoBehaviour
             return UnityEngine.Random.Range(0.7f, 1.0f);
         }
     }
+
+    //Creates the necessary items for the grid
+    void InitializeGrid()
+    {
+        cells = new Cell[HEIGHT, WIDTH];
+
+        texture = new Texture2D(WIDTH, HEIGHT);
+        pixels = new Color[WIDTH * HEIGHT];
+
+        texture.filterMode = FilterMode.Point;
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        display.texture = texture;        
+    }
+
+    // Instantiates each cell and gives it a potential
+    void CreateCells()
+    {
+        for (int y = 0; y < HEIGHT; y++)
+        {
+            for (int x = 0; x < WIDTH; x++)
+            {
+                cells[y,x] = new Cell(0, GetPotential(x, y));
+            }
+        }
+    }
+
+    //Creates the cells and smooths their potentials
+    void GenerateInitialConditions()
+    {
+        CreateCells();
+        SmoothPotentials();
+    }
+
+    //Renders the new pixels and updates the texture
+    void Render()
+    {
+        UpdatePixels();
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+    }
+
+    void SmoothPotentials()
+    {
+        float[,] newPotentials = new float[HEIGHT, WIDTH];
+
+        for (int y = 1; y < HEIGHT - 1; y++)
+        {
+            for (int x = 1; x < WIDTH - 1; x++)
+            {
+                float average = (
+                    cells[y + 1, x].electricPotential +
+                    cells[y, x + 1].electricPotential +
+                    cells[y - 1, x].electricPotential +
+                    cells[y, x - 1].electricPotential
+                ) / 4f;
+
+                newPotentials[y, x] = Mathf.Lerp(cells[y, x].electricPotential, average, 0.2f);
+            }
+            
+        }
+        for (int y = 1; y < HEIGHT - 1; y++)
+        {
+            for (int x = 1; x < WIDTH - 1; x++)
+            {
+                cells[y, x].electricPotential = newPotentials[y, x];
+            }
+        }
+    }
+
+    void UpdatePixels()
+    {
+        for (int y = 0; y < HEIGHT; y++)
+        {
+            for (int x = 0; x < WIDTH; x++)
+            {
+                int index = y * WIDTH + x;
+                pixels[index] = GetPotentialColor(cells[y, x].electricPotential);
+            }
+        }
+    }
+
+    void CalculateElectricField()
+    {
+        for (int y = 1; y < HEIGHT - 1; y++)
+        {
+            for (int x = 1; x < WIDTH - 1; x++)
+            {
+                float left = cells[y, x - 1].electricPotential;
+                float right = cells[y, x + 1].electricPotential;
+                float top = cells[y + 1, x].electricPotential;
+                float down = cells[y - 1, y].electricPotential;
+
+                float fieldX = (right - left) / 2f;
+                float fieldY = (top - down) / 2f;
+
+                float fieldStrength = Mathf.Sqrt(fieldX * fieldX + fieldY * fieldY);
+
+                cells[y, x].electricField = fieldStrength;
+            }
+        }
+    }
+
+    
 }
