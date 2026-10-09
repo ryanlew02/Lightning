@@ -200,7 +200,7 @@ public class Lightning : MonoBehaviour
                 float left = cells[y, x - 1].electricPotential;
                 float right = cells[y, x + 1].electricPotential;
                 float top = cells[y + 1, x].electricPotential;
-                float down = cells[y - 1, y].electricPotential;
+                float down = cells[y - 1, x].electricPotential;
 
                 float fieldX = (right - left) / 2f;
                 float fieldY = (top - down) / 2f;
