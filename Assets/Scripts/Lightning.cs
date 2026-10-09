@@ -35,20 +35,22 @@ public class Lightning : MonoBehaviour
         public float electricPotential;
         public float ionLevel;
         public float conductivity;
-        public float electricField;
+        public Vector2 electricField;
         public bool isActive;
         public Material material;
+        public bool fixedPotential;
 
 
-        public Cell(int charge, float electricPotential)
+        public Cell(int charge, float electricPotential, bool fixedPotential)
         {
             this.charge = charge;
             this.electricPotential = electricPotential;
+            this.electricField = Vector2.zero;
             this.ionLevel = 0f;
             this.conductivity = 0.2f;
             this.isActive = false;
             this.material = Material.air;
-            this.electricField = 0f;
+            this.fixedPotential = fixedPotential;
         }
     }
     
@@ -57,6 +59,11 @@ public class Lightning : MonoBehaviour
         InitializeGrid();
 
         GenerateInitialConditions();
+
+        CalculateElectricField();
+
+        SolvePotentials();
+
         Render();
     }
 
@@ -80,7 +87,7 @@ public class Lightning : MonoBehaviour
         }
     }
 
-    float GetPotential(int x, int y)
+    (float potential, bool fixedPotential) GetPotential(int x, int y)
     {
         float groundNoise = Mathf.PerlinNoise(x * 0.05f, 0f);
         float lowerCloudNoise = Mathf.PerlinNoise(x * 0.04f, 10f);
@@ -92,21 +99,15 @@ public class Lightning : MonoBehaviour
     
 
         if (y <= groundTop)
-        {
-            return UnityEngine.Random.Range(0.5f, 0.8f);
-        }
-        else if (y <= lowerCloudBottom)
-        {
-            return UnityEngine.Random.Range(-0.2f, 0.2f);
-        }
-        else if (y <= lowerCloudTop)
-        {
-            return UnityEngine.Random.Range(-1.0f, -0.7f);
-        }
-        else
-        {
-            return UnityEngine.Random.Range(0.7f, 1.0f);
-        }
+            return (UnityEngine.Random.Range(0.6f, 0.8f), true); //ground
+        
+        if (y <= lowerCloudBottom)
+            return (UnityEngine.Random.Range(-0.2f, 0.2f), false); //air
+
+        if (y <= lowerCloudTop)
+            return (UnityEngine.Random.Range(-1.0f, -0.7f), true); //bottom cloud
+        
+        return (UnityEngine.Random.Range(0.7f, 1.0f), true); //top cloud
     }
 
     //Creates the necessary items for the grid
@@ -130,7 +131,8 @@ public class Lightning : MonoBehaviour
         {
             for (int x = 0; x < WIDTH; x++)
             {
-                cells[y,x] = new Cell(0, GetPotential(x, y));
+                var (potential, fixedPotential) = GetPotential(x, y);
+                cells[y,x] = new Cell(0, potential, fixedPotential);
             }
         }
     }
@@ -139,7 +141,6 @@ public class Lightning : MonoBehaviour
     void GenerateInitialConditions()
     {
         CreateCells();
-        SmoothPotentials();
     }
 
     //Renders the new pixels and updates the texture
@@ -149,34 +150,6 @@ public class Lightning : MonoBehaviour
 
         texture.SetPixels(pixels);
         texture.Apply();
-    }
-
-    void SmoothPotentials()
-    {
-        float[,] newPotentials = new float[HEIGHT, WIDTH];
-
-        for (int y = 1; y < HEIGHT - 1; y++)
-        {
-            for (int x = 1; x < WIDTH - 1; x++)
-            {
-                float average = (
-                    cells[y + 1, x].electricPotential +
-                    cells[y, x + 1].electricPotential +
-                    cells[y - 1, x].electricPotential +
-                    cells[y, x - 1].electricPotential
-                ) / 4f;
-
-                newPotentials[y, x] = Mathf.Lerp(cells[y, x].electricPotential, average, 0.2f);
-            }
-            
-        }
-        for (int y = 1; y < HEIGHT - 1; y++)
-        {
-            for (int x = 1; x < WIDTH - 1; x++)
-            {
-                cells[y, x].electricPotential = newPotentials[y, x];
-            }
-        }
     }
 
     void UpdatePixels()
@@ -202,15 +175,37 @@ public class Lightning : MonoBehaviour
                 float top = cells[y + 1, x].electricPotential;
                 float down = cells[y - 1, x].electricPotential;
 
-                float fieldX = (right - left) / 2f;
-                float fieldY = (top - down) / 2f;
+                float fieldX = -(right - left) / (2f * CELL_SIZE);
+                float fieldY = -(top - down) / (2f * CELL_SIZE);
 
-                float fieldStrength = Mathf.Sqrt(fieldX * fieldX + fieldY * fieldY);
-
-                cells[y, x].electricField = fieldStrength;
+                cells[y, x].electricField = new Vector2(fieldX, fieldY);
             }
         }
     }
 
-    
+    void SolvePotentials()
+    {
+        for (int iteration = 0; iteration < 500; iteration++)
+        {
+            for (int y = 1; y < HEIGHT - 1; y++)
+            {
+                for (int x = 1; x < WIDTH - 1; x++)
+                {
+                    if (cells[y, x].fixedPotential)
+                    {
+                        continue;
+                    }
+
+                    float average = (
+                        cells[y + 1, x].electricPotential +
+                        cells[y - 1, x].electricPotential + 
+                        cells[y, x + 1].electricPotential +
+                        cells[y, x - 1].electricPotential
+                    ) / 4f;
+
+                    cells[y, x].electricPotential = average;
+                }
+            }
+        }
+    }
 }
