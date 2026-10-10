@@ -1,4 +1,5 @@
 using System;
+using NUnit.Framework.Constraints;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -192,19 +193,26 @@ public class Lightning : MonoBehaviour
         }
     }
 
-    //calculate air cels potentials
+    //calculate air cells potentials
     void SolvePotentials()
     {
-        for (int iteration = 0; iteration < 500; iteration++)
+        const int maxIterations = 500;
+        const float tolerance = 0.001f;
+        for (int iteration = 0; iteration < maxIterations; iteration++)
         {
+            float maxChange = 0f;
+        
             for (int y = 1; y < HEIGHT - 1; y++)
             {
+
                 for (int x = 1; x < WIDTH - 1; x++)
                 {
                     if (cells[y, x].fixedPotential)
                     {
                         continue;
                     }
+
+                    float oldPotential = cells[y, x].electricPotential;
 
                     float average = (
                         cells[y + 1, x].electricPotential +
@@ -214,7 +222,17 @@ public class Lightning : MonoBehaviour
                     ) / 4f;
 
                     cells[y, x].electricPotential = average;
+
+                    float change = Mathf.Abs(average - oldPotential);
+
+                    maxChange = Mathf.Max(maxChange, change);
                 }
+            }
+
+            if (maxChange < tolerance)
+            {
+                //Debug.Log($"Converged after {iteration + 1} iterations");
+                break;
             }
         }
     }
