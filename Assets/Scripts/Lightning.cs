@@ -19,6 +19,7 @@ public class Lightning : MonoBehaviour
     Color negative = new Color(0.1f, 0.3f, 1.0f); // Blue
     Color neutral  = new Color(0.05f, 0.05f, 0.08f); // Near black
     Color positive = new Color(1.0f, 0.15f, 0.1f); // Red
+    Color borderColor = new Color(0.27f, 0.33f, 0.41f); // Slate Gray
 
     public enum Material
     {
@@ -53,24 +54,23 @@ public class Lightning : MonoBehaviour
         }
     }
     
+    //runs once at the start of the program
     void Start()
     {
-        InitializeGrid();
-
         GenerateInitialConditions();
 
-        CalculateElectricField();
-
-        SolvePotentials();
+        SolvePotentialsAndCalculateElectricField();
 
         Render();
     }
     
+    //runs every frame
     void Update()
     {
         
     }
 
+    //returns color based off potential
     Color GetPotentialColor(float potential)
     {
         potential = Mathf.Clamp(potential, -1f, 1f);
@@ -85,15 +85,16 @@ public class Lightning : MonoBehaviour
         }
     }
 
+    //get init potential for cell x, y
     (float potential, bool fixedPotential) GetPotential(int x, int y)
     {
-        float groundNoise = Mathf.PerlinNoise(x * 0.05f, 0f);
-        float lowerCloudNoise = Mathf.PerlinNoise(x * 0.04f, 10f);
-        float upperCloudNoise = Mathf.PerlinNoise(x * 0.04f, 20f);
+        float groundNoise = Mathf.PerlinNoise(x * 0.08f, 0f);
+        float lowerCloudNoise = Mathf.PerlinNoise(x * 0.08f, 10f);
+        float upperCloudNoise = Mathf.PerlinNoise(x * 0.08f, 20f);
 
-        int groundTop = 10 + Mathf.RoundToInt(groundNoise * 8f);
-        int lowerCloudBottom = 126 + Mathf.RoundToInt(lowerCloudNoise * 8f);
-        int lowerCloudTop = 156 + Mathf.RoundToInt(upperCloudNoise * 8f);
+        int groundTop = 10 + Mathf.RoundToInt(groundNoise * 12f);
+        int lowerCloudBottom = 126 + Mathf.RoundToInt(lowerCloudNoise * 12f);
+        int lowerCloudTop = 156 + Mathf.RoundToInt(upperCloudNoise * 12f);
     
 
         if (y <= groundTop)
@@ -108,7 +109,7 @@ public class Lightning : MonoBehaviour
         return (UnityEngine.Random.Range(0.7f, 1.0f), true); //top cloud
     }
 
-    //Creates the necessary items for the grid
+    //creates the necessary items for the grid
     void InitializeGrid()
     {
         cells = new Cell[HEIGHT, WIDTH];
@@ -122,7 +123,7 @@ public class Lightning : MonoBehaviour
         display.texture = texture;        
     }
 
-    // Instantiates each cell and gives it a potential
+    //instantiates each cell and gives it a potential
     void CreateCells()
     {
         for (int y = 0; y < HEIGHT; y++)
@@ -135,13 +136,14 @@ public class Lightning : MonoBehaviour
         }
     }
 
-    //Creates the cells and smooths their potentials
+    //creates the cells and smooths their potentials
     void GenerateInitialConditions()
     {
+        InitializeGrid();
         CreateCells();
     }
 
-    //Renders the new pixels and updates the texture
+    //renders the new pixels and updates the texture
     void Render()
     {
         UpdatePixels();
@@ -150,6 +152,7 @@ public class Lightning : MonoBehaviour
         texture.Apply();
     }
 
+    //gets the potential for each cell and assigns it
     void UpdatePixels()
     {
         for (int y = 0; y < HEIGHT; y++)
@@ -157,11 +160,19 @@ public class Lightning : MonoBehaviour
             for (int x = 0; x < WIDTH; x++)
             {
                 int index = y * WIDTH + x;
-                pixels[index] = GetPotentialColor(cells[y, x].electricPotential);
+
+                if (x < 2 || x > WIDTH - 3 || y < 2 || y > HEIGHT - 3) //border pixel
+                {
+                    pixels[index] = borderColor;
+                } else
+                {
+                    pixels[index] = GetPotentialColor(cells[y, x].electricPotential);
+                }
             }
         }
     }
 
+    //create vector2 for each cell for electric field
     void CalculateElectricField()
     {
         for (int y = 1; y < HEIGHT - 1; y++)
@@ -181,6 +192,7 @@ public class Lightning : MonoBehaviour
         }
     }
 
+    //calculate air cels potentials
     void SolvePotentials()
     {
         for (int iteration = 0; iteration < 500; iteration++)
@@ -205,5 +217,12 @@ public class Lightning : MonoBehaviour
                 }
             }
         }
+    }
+
+    //solve potentials and calculate electric field
+    void SolvePotentialsAndCalculateElectricField()
+    {
+        SolvePotentials();
+        CalculateElectricField();
     }
 }
