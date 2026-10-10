@@ -18,7 +18,6 @@ public class Lightning : MonoBehaviour
 
     Color negative = new Color(0.1f, 0.3f, 1.0f); // Blue
     Color neutral  = new Color(0.05f, 0.05f, 0.08f); // Near black
-    //Color white = new Color(1f, 1f, 1f, 1f);
     Color positive = new Color(1.0f, 0.15f, 0.1f); // Red
 
     public enum Material
@@ -66,7 +65,6 @@ public class Lightning : MonoBehaviour
 
         Render();
     }
-
     
     void Update()
     {
