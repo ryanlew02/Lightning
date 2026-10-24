@@ -11,6 +11,9 @@ public class Lightning : MonoBehaviour
     public const int WIDTH = 320;
     public const float CELL_SIZE = 0.05f;
 
+    [SerializeField] float potentialScale = 0.5f;
+    [SerializeField] float fieldScale = 0.5f;
+
     public RawImage display;
 
     Cell[,] cells;
@@ -22,7 +25,15 @@ public class Lightning : MonoBehaviour
     Color positive = new Color(1.0f, 0.15f, 0.1f); // Red
     Color borderColor = new Color(0.27f, 0.33f, 0.41f); // Slate Gray
 
-    public enum Material
+    public enum ViewMode
+    {
+        Potential,
+        ElectricField
+    }
+
+    public ViewMode viewMode = ViewMode.Potential;
+
+    private enum Material
     {
         air,
         water,
@@ -42,16 +53,18 @@ public class Lightning : MonoBehaviour
         public bool fixedPotential;
 
 
-        public Cell(int charge, float electricPotential, bool fixedPotential)
+        public Cell(float charge, float electricPotential, bool fixedPotential)
         {
             this.charge = charge;
             this.electricPotential = electricPotential;
+            this.fixedPotential = fixedPotential;
+
             this.electricField = Vector2.zero;
             this.ionLevel = 0f;
             this.conductivity = 0.2f;
             this.isActive = false;
             this.material = Material.air;
-            this.fixedPotential = fixedPotential;
+    
         }
     }
     
@@ -68,21 +81,23 @@ public class Lightning : MonoBehaviour
     //runs every frame
     void Update()
     {
-        
+        Render();
     }
 
     //returns color based off potential
     Color GetPotentialColor(float potential)
     {
-        potential = Mathf.Clamp(potential, -1f, 1f);
+        float normalized = Mathf.Clamp(potential / potentialScale, -1f, 1f);
 
-        if (potential < 0)
+
+
+        if (normalized < 0f)
         {
-            return Color.Lerp(neutral, negative, -potential);
+            return Color.Lerp(neutral, negative, -normalized);
         }
         else
         {
-            return Color.Lerp(neutral, positive, potential);
+            return Color.Lerp(neutral, positive, normalized);
         }
     }
 
@@ -99,15 +114,30 @@ public class Lightning : MonoBehaviour
     
 
         if (y <= groundTop)
-            return (UnityEngine.Random.Range(0.6f, 0.8f), true); //ground
+            return (0.8f, true); //ground
         
         if (y <= lowerCloudBottom)
-            return (UnityEngine.Random.Range(-0.2f, 0.2f), false); //air
+            return (0.0f, false); //air
 
         if (y <= lowerCloudTop)
-            return (UnityEngine.Random.Range(-1.0f, -0.7f), true); //bottom cloud
+            return (-0.8f, true); //bottom cloud
         
-        return (UnityEngine.Random.Range(0.7f, 1.0f), true); //top cloud
+        return (0.8f, true); //top cloud
+    }
+
+    //gets the charge for a given cell, using the Gaussian distribution
+    float GetCharge(int x, int y)
+    {
+        float upperPositive = 1.5f * 
+            Gaussian(x, y, 160f, 155f, 65f, 12f); //experimental
+
+        float middleNegative = -1.2f * 
+            Gaussian(x, y, 160f, 130f, 65f, 14f); //experimental
+
+        float lowerPositive = 0.5f * 
+            Gaussian(x, y, 160f, 105f, 40f, 8f); //experimental
+        
+        return upperPositive + middleNegative + lowerPositive;
     }
 
     //creates the necessary items for the grid
@@ -131,8 +161,15 @@ public class Lightning : MonoBehaviour
         {
             for (int x = 0; x < WIDTH; x++)
             {
-                var (potential, fixedPotential) = GetPotential(x, y);
-                cells[y,x] = new Cell(0, potential, fixedPotential);
+                float groundNoise = Mathf.PerlinNoise(x * 0.08f, 0.0f);
+                int groundTop = 10 + Mathf.RoundToInt(groundNoise * 12.0f);
+
+                bool isGround = y <= groundTop;
+
+                float charge = isGround ? 0.0f : GetCharge(x, y);
+                float potential = 0.0f;
+
+                cells[y,x] = new Cell(charge, potential, isGround);
             }
         }
     }
@@ -165,10 +202,19 @@ public class Lightning : MonoBehaviour
                 if (x < 2 || x > WIDTH - 3 || y < 2 || y > HEIGHT - 3) //border pixel
                 {
                     pixels[index] = borderColor;
-                } else
+                    continue;
+                }
+
+                if (viewMode == ViewMode.Potential)
                 {
                     pixels[index] = GetPotentialColor(cells[y, x].electricPotential);
                 }
+                else
+                {
+                    float strength = cells[y, x].electricField.magnitude;
+                    pixels[index] = GetElectricFieldColor(strength);
+                }
+    
             }
         }
     }
@@ -196,8 +242,8 @@ public class Lightning : MonoBehaviour
     //calculate air cells potentials
     void SolvePotentials()
     {
-        const int maxIterations = 500;
-        const float tolerance = 0.001f;
+        const int maxIterations = 5000;
+        const float tolerance = 0.00001f;
         for (int iteration = 0; iteration < maxIterations; iteration++)
         {
             float maxChange = 0f;
@@ -213,12 +259,14 @@ public class Lightning : MonoBehaviour
                     }
 
                     float oldPotential = cells[y, x].electricPotential;
+                    const float epsilon = 1.0f;
 
                     float average = (
                         cells[y + 1, x].electricPotential +
                         cells[y - 1, x].electricPotential + 
                         cells[y, x + 1].electricPotential +
-                        cells[y, x - 1].electricPotential
+                        cells[y, x - 1].electricPotential +
+                        cells[y, x].charge * CELL_SIZE * CELL_SIZE / epsilon
                     ) / 4f;
 
                     cells[y, x].electricPotential = average;
@@ -242,5 +290,22 @@ public class Lightning : MonoBehaviour
     {
         SolvePotentials();
         CalculateElectricField();
+    }
+
+    //get the electric field color
+    Color GetElectricFieldColor(float strength)
+    {
+        float normalized = Mathf.Clamp01(strength / fieldScale);
+
+        return Color.Lerp(Color.black, Color.yellow, normalized);
+    }
+
+    //helper to get gaussian
+    float Gaussian(float x, float y, float centerX, float centerY, float sigmaX, float sigmaY)
+    {
+        float dx = (x - centerX) / sigmaX;
+        float dy = (y - centerY) / sigmaY;
+
+        return Mathf.Exp(-0.5f * (dx * dx + dy * dy));
     }
 }
