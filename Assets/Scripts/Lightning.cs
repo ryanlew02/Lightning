@@ -9,10 +9,10 @@ public class Lightning : MonoBehaviour
 
     public const int HEIGHT = 180;
     public const int WIDTH = 320;
-    public const float CELL_SIZE = 0.05f;
+    public const float CELL_SIZE = 50f;
 
-    [SerializeField] float potentialScale = 0.5f;
-    [SerializeField] float fieldScale = 0.5f;
+    private float potentialScale = 100000000f;
+    private float fieldScale = 100000f;
 
     public RawImage display;
 
@@ -28,7 +28,8 @@ public class Lightning : MonoBehaviour
     public enum ViewMode
     {
         Potential,
-        ElectricField
+        ElectricField,
+        ChargeDensity
     }
 
     public ViewMode viewMode = ViewMode.Potential;
@@ -128,14 +129,14 @@ public class Lightning : MonoBehaviour
     //gets the charge for a given cell, using the Gaussian distribution
     float GetCharge(int x, int y)
     {
-        float upperPositive = 1.5f * 
-            Gaussian(x, y, 160f, 155f, 65f, 12f); //experimental
+        float upperPositive = 0.9e-9f * 
+            Gaussian(x, y, 160f, 150f, 45f, 12f); //experimental
 
-        float middleNegative = -1.2f * 
-            Gaussian(x, y, 160f, 130f, 65f, 14f); //experimental
+        float middleNegative = -1.2e-9f * 
+            Gaussian(x, y, 160f, 110f, 48f, 13f); //experimental
 
-        float lowerPositive = 0.5f * 
-            Gaussian(x, y, 160f, 105f, 40f, 8f); //experimental
+        float lowerPositive = 0.5e-9f * 
+            Gaussian(x, y, 160f, 70f, 28f, 9f); //experimental
         
         return upperPositive + middleNegative + lowerPositive;
     }
@@ -243,7 +244,7 @@ public class Lightning : MonoBehaviour
     void SolvePotentials()
     {
         const int maxIterations = 5000;
-        const float tolerance = 0.00001f;
+        const float tolerance = 0.1f;
         for (int iteration = 0; iteration < maxIterations; iteration++)
         {
             float maxChange = 0f;
@@ -259,7 +260,7 @@ public class Lightning : MonoBehaviour
                     }
 
                     float oldPotential = cells[y, x].electricPotential;
-                    const float epsilon = 1.0f;
+                    const float epsilon = 8.85418782e-12f * 1.0006f;
 
                     float average = (
                         cells[y + 1, x].electricPotential +
@@ -276,6 +277,8 @@ public class Lightning : MonoBehaviour
                     maxChange = Mathf.Max(maxChange, change);
                 }
             }
+
+            ApplyBoundryConditions();
 
             if (maxChange < tolerance)
             {
@@ -307,5 +310,21 @@ public class Lightning : MonoBehaviour
         float dy = (y - centerY) / sigmaY;
 
         return Mathf.Exp(-0.5f * (dx * dx + dy * dy));
+    }
+
+    //makes boundry cells have the same conditions as the outline ones
+    void ApplyBoundryConditions()
+    {
+        for (int y = 1; y < HEIGHT - 1; y++)
+        {
+            cells[y, 0].electricPotential = cells[y, 1].electricPotential;
+            cells[y, WIDTH - 1].electricPotential = cells[y, WIDTH - 2].electricPotential;
+        }
+
+        for (int x = 0; x < WIDTH - 1; x++)
+        {
+            cells[0, x].electricPotential = cells[1, x].electricPotential;
+            cells[HEIGHT - 1, x].electricPotential = cells[HEIGHT - 2, x].electricPotential;
+        }
     }
 }
