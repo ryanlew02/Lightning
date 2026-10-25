@@ -643,12 +643,10 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 36ace41dfa06a614ca3d068ddef48eb8, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: '::'
+  m_EditorClassIdentifier: Assembly-CSharp::Lightning
   cellPrefab: {fileID: 3264016123024523024, guid: 06c58ad5a232d984990f2ab1c404f2e0, type: 3}
-  potentialScale: 0.1
-  fieldScale: 0.1
   display: {fileID: 112240721}
-  viewMode: 1
+  viewMode: 0
 --- !u!4 &1668433214
 Transform:
   m_ObjectHideFlags: 0

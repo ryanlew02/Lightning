@@ -1,5 +1,6 @@
 using System;
 using NUnit.Framework.Constraints;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -13,6 +14,8 @@ public class Lightning : MonoBehaviour
 
     private float potentialScale = 100000000f;
     private float fieldScale = 100000f;
+    private float chargeScale = 1.2e-9f;
+
 
     public RawImage display;
 
@@ -77,6 +80,7 @@ public class Lightning : MonoBehaviour
         SolvePotentialsAndCalculateElectricField();
 
         Render();
+        FindMaxElectricField();
     }
     
     //runs every frame
@@ -102,43 +106,29 @@ public class Lightning : MonoBehaviour
         }
     }
 
-    //get init potential for cell x, y
-    (float potential, bool fixedPotential) GetPotential(int x, int y)
-    {
-        float groundNoise = Mathf.PerlinNoise(x * 0.08f, 0f);
-        float lowerCloudNoise = Mathf.PerlinNoise(x * 0.08f, 10f);
-        float upperCloudNoise = Mathf.PerlinNoise(x * 0.08f, 20f);
-
-        int groundTop = 10 + Mathf.RoundToInt(groundNoise * 12f);
-        int lowerCloudBottom = 126 + Mathf.RoundToInt(lowerCloudNoise * 12f);
-        int lowerCloudTop = 156 + Mathf.RoundToInt(upperCloudNoise * 12f);
-    
-
-        if (y <= groundTop)
-            return (0.8f, true); //ground
-        
-        if (y <= lowerCloudBottom)
-            return (0.0f, false); //air
-
-        if (y <= lowerCloudTop)
-            return (-0.8f, true); //bottom cloud
-        
-        return (0.8f, true); //top cloud
-    }
-
     //gets the charge for a given cell, using the Gaussian distribution
     float GetCharge(int x, int y)
     {
-        float upperPositive = 0.9e-9f * 
-            Gaussian(x, y, 160f, 150f, 45f, 12f); //experimental
+        float noise = Mathf.PerlinNoise(x * 0.025f, y * 0.025f);
+        float variation = Mathf.Lerp(0.8f, 1.3f, noise);
+
+        float centerX = WIDTH / 2;
+
+        float upperX = centerX + UnityEngine.Random.Range(-25f, 25f);
+        float middleX = centerX + UnityEngine.Random.Range(-25f, 25f);
+        float bottomX = centerX + UnityEngine.Random.Range(-25f, 25f);
+
+        float upperPositive = 0.8e-9f * 
+            Gaussian(x, y, upperX, 150f, 45f, 12f); //experimental
 
         float middleNegative = -1.2e-9f * 
-            Gaussian(x, y, 160f, 110f, 48f, 13f); //experimental
+            Gaussian(x, y, middleX, 110f, 48f, 13f); //experimental
 
-        float lowerPositive = 0.5e-9f * 
-            Gaussian(x, y, 160f, 70f, 28f, 9f); //experimental
+        float lowerPositive = 0.9e-9f * 
+            Gaussian(x, y, bottomX, 70f, 28f, 9f); //experimental
+
         
-        return upperPositive + middleNegative + lowerPositive;
+        return (upperPositive + middleNegative + lowerPositive) * variation;
     }
 
     //creates the necessary items for the grid
@@ -210,10 +200,14 @@ public class Lightning : MonoBehaviour
                 {
                     pixels[index] = GetPotentialColor(cells[y, x].electricPotential);
                 }
-                else
+                else if (viewMode == ViewMode.ElectricField)
                 {
                     float strength = cells[y, x].electricField.magnitude;
                     pixels[index] = GetElectricFieldColor(strength);
+                }
+                else if (viewMode == ViewMode.ChargeDensity)
+                {
+                    pixels[index] = GetChargeDensityColor(cells[y, x].charge);
                 }
     
             }
@@ -303,6 +297,18 @@ public class Lightning : MonoBehaviour
         return Color.Lerp(Color.black, Color.yellow, normalized);
     }
 
+    //get charge density color
+    Color GetChargeDensityColor(float charge)
+    {
+        float normalized = Mathf.Clamp(charge / chargeScale, -1f, 1f);
+
+        if (normalized < 0.0f)
+        {
+            return Color.Lerp(neutral, negative, -normalized);
+        }
+        return Color.Lerp(neutral, positive, normalized);
+    }
+
     //helper to get gaussian
     float Gaussian(float x, float y, float centerX, float centerY, float sigmaX, float sigmaY)
     {
@@ -317,14 +323,49 @@ public class Lightning : MonoBehaviour
     {
         for (int y = 1; y < HEIGHT - 1; y++)
         {
-            cells[y, 0].electricPotential = cells[y, 1].electricPotential;
-            cells[y, WIDTH - 1].electricPotential = cells[y, WIDTH - 2].electricPotential;
+            if (!cells[y, 0].fixedPotential)
+            {
+                cells[y, 0].electricPotential = cells[y, 1].electricPotential;
+            }
+            if (!cells[y, WIDTH - 1].fixedPotential)
+            {
+                cells[y, WIDTH - 1].electricPotential = cells[y, WIDTH - 2].electricPotential;
+            }
         }
 
         for (int x = 0; x < WIDTH - 1; x++)
         {
-            cells[0, x].electricPotential = cells[1, x].electricPotential;
-            cells[HEIGHT - 1, x].electricPotential = cells[HEIGHT - 2, x].electricPotential;
+            if (!cells[0, x].fixedPotential)
+            {
+                cells[0, x].electricPotential = cells[1, x].electricPotential;
+            }
+            if (!cells[HEIGHT - 1, x].fixedPotential)
+            {
+                cells[HEIGHT - 1, x].electricPotential = cells[HEIGHT - 2, x].electricPotential;
+            }
         }
     }
+
+    void FindMaxElectricField()
+    {
+        float mx = 0f;
+        int mx_x = 0;
+        int mx_y = 0;
+
+        for (int y = 0; y < HEIGHT; y++)
+        {
+            for (int x = 0; x < WIDTH; x++)
+            {
+                if (cells[y, x].electricField.magnitude > mx)
+                {
+                    mx = cells[y, x].electricField.magnitude;
+                    mx_x = x;
+                    mx_y = y;
+                }
+            }
+        }
+
+        Debug.Log($"Maximum electric field: {mx:E2} V/m, x: {mx_x} y: {mx_y}");
+    }
+
 }
