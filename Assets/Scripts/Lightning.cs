@@ -1,5 +1,6 @@
 using System;
 using System.IO.Compression;
+using System.Numerics;
 using System.Threading;
 using NUnit.Framework.Constraints;
 using Unity.Collections;
@@ -23,6 +24,8 @@ public class Lightning : MonoBehaviour
     private float upperX;
     private float middleX;
     private float bottomX;
+
+    private UnityEngine.Vector2Int leaderTip;
 
     public RawImage display;
 
@@ -59,7 +62,7 @@ public class Lightning : MonoBehaviour
         public float electricPotential;
         public float ionLevel;
         public float conductivity;
-        public Vector2 electricField;
+        public UnityEngine.Vector2 electricField;
         public bool isActive;
         public Material material;
         public bool fixedPotential;
@@ -71,7 +74,7 @@ public class Lightning : MonoBehaviour
             this.electricPotential = electricPotential;
             this.fixedPotential = fixedPotential;
 
-            this.electricField = Vector2.zero;
+            this.electricField = UnityEngine.Vector2.zero;
             this.ionLevel = 0f;
             this.conductivity = 0.2f;
             this.isActive = false;
@@ -250,7 +253,7 @@ public class Lightning : MonoBehaviour
                 float fieldX = -(right - left) / (2f * CELL_SIZE);
                 float fieldY = -(top - down) / (2f * CELL_SIZE);
 
-                cells[y, x].electricField = new Vector2(fieldX, fieldY);
+                cells[y, x].electricField = new UnityEngine.Vector2(fieldX, fieldY);
             }
         }
     }
@@ -367,6 +370,7 @@ public class Lightning : MonoBehaviour
         }
     }
 
+    //finds the max electric field x and y
     void FindMaxElectricField()
     {
         float mx = 0f;
@@ -389,6 +393,7 @@ public class Lightning : MonoBehaviour
         //Debug.Log($"Maximum electric field: {mx:E2} V/m, x: {mx_x} y: {mx_y}");
     }
 
+    //finds the cells that are breakdown eligible
     void UpdateIonization()
     {
         // int count = 0;
@@ -411,6 +416,7 @@ public class Lightning : MonoBehaviour
         // Debug.Log($"Ionzed Count: {count}");
     }
 
+    //init lightning, finding the head of the branch
     void InitLightning()
     {
         float maxField = 0f;
@@ -460,9 +466,9 @@ public class Lightning : MonoBehaviour
         cells[bestY, bestX].ionLevel = 1f;
         cells[bestY, bestX].isActive = true;
 
-        Debug.Log($"Lightning started at {bestX}, {bestY}, level: {maxField:E2}");
+        leaderTip = new (bestX, bestY);
 
-        
+        Debug.Log($"Lightning started at {bestX}, {bestY}, level: {maxField:E2}");
 
     }
 }
