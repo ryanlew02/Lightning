@@ -1,4 +1,6 @@
 using System;
+using System.IO.Compression;
+using System.Threading;
 using NUnit.Framework.Constraints;
 using Unity.Collections;
 using UnityEngine;
@@ -15,13 +17,19 @@ public class Lightning : MonoBehaviour
     private float potentialScale = 100000000f;
     private float fieldScale = 100000f;
     private float chargeScale = 1.2e-9f;
+    private float breakdownThreshold = 50000f;
 
+    //the 3 main regions x value
+    private float upperX;
+    private float middleX;
+    private float bottomX;
 
     public RawImage display;
 
-    Cell[,] cells;
-    Texture2D texture;
-    Color[] pixels;
+    private Cell[,] cells;
+    private Texture2D texture;
+    private Color[] pixels;
+    private bool[,] breakDownEligible;
 
     Color negative = new Color(0.1f, 0.3f, 1.0f); // Blue
     Color neutral  = new Color(0.05f, 0.05f, 0.08f); // Near black
@@ -79,7 +87,12 @@ public class Lightning : MonoBehaviour
 
         SolvePotentialsAndCalculateElectricField();
 
+        UpdateIonization();
+
+        InitLightning();
+
         Render();
+
         FindMaxElectricField();
     }
     
@@ -112,12 +125,6 @@ public class Lightning : MonoBehaviour
         float noise = Mathf.PerlinNoise(x * 0.025f, y * 0.025f);
         float variation = Mathf.Lerp(0.8f, 1.3f, noise);
 
-        float centerX = WIDTH / 2;
-
-        float upperX = centerX + UnityEngine.Random.Range(-25f, 25f);
-        float middleX = centerX + UnityEngine.Random.Range(-25f, 25f);
-        float bottomX = centerX + UnityEngine.Random.Range(-25f, 25f);
-
         float upperPositive = 0.8e-9f * 
             Gaussian(x, y, upperX, 150f, 45f, 12f); //experimental
 
@@ -135,6 +142,7 @@ public class Lightning : MonoBehaviour
     void InitializeGrid()
     {
         cells = new Cell[HEIGHT, WIDTH];
+        breakDownEligible = new bool[HEIGHT, WIDTH];
 
         texture = new Texture2D(WIDTH, HEIGHT);
         pixels = new Color[WIDTH * HEIGHT];
@@ -168,6 +176,13 @@ public class Lightning : MonoBehaviour
     //creates the cells and smooths their potentials
     void GenerateInitialConditions()
     {
+        //get the random centers for the 3 main regions
+        float centerX = WIDTH / 2;
+        upperX = centerX + UnityEngine.Random.Range(-25f, 25f);
+        middleX = centerX + UnityEngine.Random.Range(-25f, 25f);
+        bottomX = centerX + UnityEngine.Random.Range(-25f, 25f);
+
+
         InitializeGrid();
         CreateCells();
     }
@@ -193,6 +208,12 @@ public class Lightning : MonoBehaviour
                 if (x < 2 || x > WIDTH - 3 || y < 2 || y > HEIGHT - 3) //border pixel
                 {
                     pixels[index] = borderColor;
+                    continue;
+                }
+
+                if (cells[y, x].isActive)
+                {
+                    pixels[index] = Color.white;
                     continue;
                 }
 
@@ -365,7 +386,83 @@ public class Lightning : MonoBehaviour
             }
         }
 
-        Debug.Log($"Maximum electric field: {mx:E2} V/m, x: {mx_x} y: {mx_y}");
+        //Debug.Log($"Maximum electric field: {mx:E2} V/m, x: {mx_x} y: {mx_y}");
     }
 
+    void UpdateIonization()
+    {
+        // int count = 0;
+
+        for (int x = 1; x < WIDTH - 1; x++)
+        {
+            for (int y = 1; y < HEIGHT - 1; y++)
+            {
+                float magnitude = cells[y, x].electricField.magnitude;
+
+                breakDownEligible[y, x] = magnitude >= breakdownThreshold;
+
+                // if (ionized[y, x])
+                // {
+                //     count++;
+                // }
+            }
+        }
+
+        // Debug.Log($"Ionzed Count: {count}");
+    }
+
+    void InitLightning()
+    {
+        float maxField = 0f;
+        int bestX = -1;
+        int bestY = -1;
+
+        for (int y = 1; y < HEIGHT - 1; y++)
+        {
+            for (int x = 1; x < WIDTH - 1; x++)
+            {
+                if (!breakDownEligible[y, x])
+                {
+                    continue;
+                }
+
+                if (cells[y, x].charge >= 0f)
+                {
+                    continue;
+                }
+                
+                if (cells[y, x].fixedPotential)
+                {
+                    continue;
+                }
+
+                if (Mathf.Abs(x - middleX) > 48f || Mathf.Abs(y - 110f) > 26f)
+                {
+                    continue;
+                }
+
+                float field = cells[y, x].electricField.magnitude;
+
+                if (field > maxField)
+                {
+                    maxField = field;
+                    bestX = x;
+                    bestY = y;
+                }
+            }
+        }
+        if (bestX == -1 || bestY == -1)
+        {
+            Debug.LogWarning($"No valid lightning spots found");
+            return;
+        }
+
+        cells[bestY, bestX].ionLevel = 1f;
+        cells[bestY, bestX].isActive = true;
+
+        Debug.Log($"Lightning started at {bestX}, {bestY}, level: {maxField:E2}");
+
+        
+
+    }
 }
