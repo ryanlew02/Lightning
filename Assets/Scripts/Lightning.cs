@@ -396,7 +396,7 @@ public class Lightning : MonoBehaviour
     //finds the cells that are breakdown eligible
     void UpdateIonization()
     {
-        // int count = 0;
+        int count = 0;
 
         for (int x = 1; x < WIDTH - 1; x++)
         {
@@ -406,14 +406,14 @@ public class Lightning : MonoBehaviour
 
                 breakDownEligible[y, x] = magnitude >= breakdownThreshold;
 
-                // if (ionized[y, x])
-                // {
-                //     count++;
-                // }
+                if (breakDownEligible[y, x])
+                {
+                    count++;
+                }
             }
         }
 
-        // Debug.Log($"Ionzed Count: {count}");
+        Debug.Log($"Cells eligible to undergo dielectric breakdown: {count}");
     }
 
     //init lightning, finding the head of the branch
@@ -468,7 +468,7 @@ public class Lightning : MonoBehaviour
 
         leaderTip = new (bestX, bestY);
 
-        Debug.Log($"Lightning started at {bestX}, {bestY}, level: {maxField:E2}");
+        //Debug.Log($"Lightning started at {bestX}, {bestY}, level: {maxField:E2}");
 
     }
 }
